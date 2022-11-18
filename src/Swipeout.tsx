@@ -1,4 +1,4 @@
-import { useSpring, animated } from '@react-spring/web'
+import { useSpring, animated, SpringConfig } from '@react-spring/web'
 import cn from 'classnames'
 import { useDrag } from '@use-gesture/react'
 import { ReactNode, useEffect, useRef, useState } from 'react'
@@ -14,12 +14,15 @@ export type ActionConifg = {
 }
 
 type Props = {
+    className?: string
     contentClassName?: string
     children?: ReactNode
     actions?: {
         right?: ActionConifg[]
         left?: ActionConifg[]
     }
+    areActionsSwipable?: boolean
+    springConfig?: SpringConfig
 }
 
 type LockPosition = 'left' | 'right' | 'center'
@@ -28,12 +31,15 @@ type ArmedAction = 'left' | 'right' | 'none'
 const ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
 
 export const Swipeout = ({
+    className,
     contentClassName,
     children,
     actions = {
         left: [],
         right: [],
     },
+    areActionsSwipable = true,
+    springConfig = { tension: 270, friction: 26 },
 }: Props) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const stateRef = useRef({
@@ -68,7 +74,7 @@ export const Swipeout = ({
         }
     }, [])
 
-    const [{ x }, api] = useSpring(() => ({ x: 0, config: { tension: 270, friction: 26 } }))
+    const [{ x }, api] = useSpring(() => ({ x: 0, config: springConfig }))
 
     const bind = useDrag(
         ({ movement: [mx], down, active, velocity: [vx], event }) => {
@@ -97,8 +103,10 @@ export const Swipeout = ({
                     event.preventDefault()
                 }
 
-                // swipe over an action shouldn't trigger the slide
-                return
+                if (!areActionsSwipable) {
+                    // swipe over an action shouldn't trigger the slide
+                    return
+                }
             }
 
             // pointer is down, the element should just slide
@@ -108,7 +116,8 @@ export const Swipeout = ({
                     immediate: down,
                 }))
 
-                if (Math.abs(mx + lockOffset) > width * ACTION_TRIGGER_THRESHOLD) {
+                // locked position shouldn't be the center one otherwise the action would trigger on the first slide
+                if (lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * ACTION_TRIGGER_THRESHOLD) {
                     setArmedActionState(activeActionsSide)
                     stateRef.current.armedAction = activeActionsSide
                 } else {
@@ -121,7 +130,7 @@ export const Swipeout = ({
 
             // pointer is up, we should check if action should be triggered
             if (armedAction !== 'none') {
-                const mainAction = actions?.[armedAction]?.[0]
+                const mainAction = armedAction === 'left' ? actions!.left!.at(0) : actions!.right!.at(-1)
 
                 if (mainAction) {
                     mainAction.onTrigger()
@@ -162,7 +171,6 @@ export const Swipeout = ({
         {
             axis: 'x',
             preventScroll: true,
-            preventScrollAxis: 'xy',
         },
     )
 
@@ -182,7 +190,7 @@ export const Swipeout = ({
     }
 
     return (
-        <div className="relative select-none touch-none" {...dragProps} ref={containerRef}>
+        <div className={cn('relative select-none touch-none', className)} {...dragProps} ref={containerRef}>
             {actions?.left?.map((action, index, leftActions) => {
                 const isMainAction = index === 0
                 const isArmed = isMainAction && armedActionState === 'left'
