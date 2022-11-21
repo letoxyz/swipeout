@@ -52,7 +52,6 @@ export const Swipeout = ({
         lockOffset: 0,
         armedAction: 'none' as ArmedAction,
     })
-    const [armedActionState, setArmedActionState] = useState<ArmedAction>('none')
 
     useEffect(() => {
         const onPointerDown = (e: PointerEvent) => {
@@ -93,7 +92,7 @@ export const Swipeout = ({
 
         leftSpringsApi.start((index) => {
             const isMainAction = index === 0
-            const isArmed = isMainAction && armedActionState === 'left'
+            const isArmed = isMainAction && stateRef.current.armedAction === 'left'
 
             const result = {
                 x,
@@ -108,7 +107,7 @@ export const Swipeout = ({
         })
         rightSpringsApi.start((index) => {
             const isMainAction = index === 0
-            const isArmed = isMainAction && armedActionState === 'right'
+            const isArmed = isMainAction && stateRef.current.armedAction === 'right'
 
             const result = {
                 x,
@@ -165,10 +164,8 @@ export const Swipeout = ({
 
                 // locked position shouldn't be the center one otherwise the action would trigger on the first slide
                 if (lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * ACTION_TRIGGER_THRESHOLD) {
-                    setArmedActionState(activeActionsSide)
                     stateRef.current.armedAction = activeActionsSide
                 } else {
-                    setArmedActionState('none')
                     stateRef.current.armedAction = 'none'
                 }
 
