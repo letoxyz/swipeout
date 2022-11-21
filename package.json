@@ -1,6 +1,6 @@
 {
-    "name": "swipeout",
-    "version": "0.0.0",
+    "name": "@letoxyz/swipeout",
+    "version": "1.0.0",
     "type": "module",
     "main": "./dist/swipeout.umd.js",
     "module": "./dist/swipeout.es.js",
@@ -54,5 +54,34 @@
     },
     "overrides": {
         "jest-mock": "28.1.0"
-    }
+    },
+    "description": "## Demo ```shell npm install npm run storybook ```",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/letoxyz/swipeout.git"
+    },
+    "author": "Leto (https://leto.xyz)",
+    "contributors": [
+        {
+            "name": "Misha Malyshev",
+            "url": "https://github.com/mlshv"
+        },
+        {
+            "name": "Max Korolev",
+            "url": "https://github.com/nrjshka"
+        },
+        {
+            "name": "Aleksey Lisun",
+            "url": "https://github.com/insulineru"
+        },
+        {
+            "name": "Iower",
+            "url": "https://github.com/iower"
+        }
+    ],
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/letoxyz/swipeout/issues"
+    },
+    "homepage": "https://github.com/letoxyz/swipeout#readme"
 }
