@@ -1,9 +1,9 @@
 import { useSpring, animated, SpringConfig, useSprings } from '@react-spring/web'
 import cn from 'classnames'
 import { useDrag } from '@use-gesture/react'
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useRef, useState } from 'react'
 
-import { useSingletonTimeout } from './utils'
+import { useSingletonTimeout, useOnPointerDown } from './utils'
 import './index.css'
 
 export type ActionConifg = {
@@ -38,7 +38,7 @@ type ArmedAction = 'left' | 'right' | 'none'
 type ActionArmStage = 'none' | 'arming' | 'armed' | 'unarming'
 
 const DEFAULT_ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
-const DEFAULT_ACTION_ARM_DURATION = 250
+const DEFAULT_ACTION_ARM_DURATION = 250 // milliseconds
 
 export const Swipeout = ({
     className,
@@ -69,28 +69,21 @@ export const Swipeout = ({
     const [armedActionState, setArmedActionState] = useState<ArmedAction>('none')
     const [setTimeout] = useSingletonTimeout()
 
-    useEffect(() => {
-        const onPointerDown = (e: PointerEvent) => {
-            const checkIsAction = (node: HTMLElement | null): boolean => {
-                if (!node) {
-                    return false
-                }
-
-                if (node?.dataset?.type === 'action') {
-                    return true
-                } else {
-                    return checkIsAction(node.parentElement)
-                }
+    useOnPointerDown((e: PointerEvent) => {
+        const checkIsAction = (node: HTMLElement | null): boolean => {
+            if (!node) {
+                return false
             }
-            const isAction = checkIsAction(e?.target as HTMLDivElement)
 
-            stateRef.current.isPointerDownElementIsAction = isAction
+            if (node?.dataset?.type === 'action') {
+                return true
+            } else {
+                return checkIsAction(node.parentElement)
+            }
         }
-        window.addEventListener('pointerdown', onPointerDown)
+        const isAction = checkIsAction(e?.target as HTMLDivElement)
 
-        return () => {
-            window.removeEventListener('pointerdown', onPointerDown)
-        }
+        stateRef.current.isPointerDownElementIsAction = isAction
     }, [])
 
     const [{ x }, api] = useSpring(() => ({ x: 0, config: springConfig }))
@@ -112,7 +105,7 @@ export const Swipeout = ({
             width: number,
             actionsCount: number,
         ) => {
-            const result = { x: Math.abs(x), immediate }
+            const result = { x: width, immediate }
 
             if (actionsCount === 1) {
                 return result
@@ -121,8 +114,6 @@ export const Swipeout = ({
             const isMainAction = index === 0
             const isArmable = isMainAction && stateRef.current.armed.action === actionSide
             const armStage = stateRef.current.armed.stage
-
-            result.x = isArmable && ['arming', 'armed'].includes(stateRef.current.armed.stage) ? Math.abs(x) : width
 
             if (isArmable) {
                 if (['arming', 'armed'].includes(stateRef.current.armed.stage)) {
@@ -144,7 +135,7 @@ export const Swipeout = ({
     }
 
     const bind = useDrag(
-        ({ movement: [mx], down, active, velocity: [vx], event }) => {
+        ({ movement: [mx], down, active, event }) => {
             const width = containerRef.current?.clientWidth
 
             if (!width) {
@@ -225,11 +216,12 @@ export const Swipeout = ({
                     mainAction.onTrigger()
                 }
 
+                stateRef.current.lockPosition = 'center'
+                stateRef.current.lockOffset = 0
+                stateRef.current.armed = { action: 'none', stage: 'none' }
                 springApiStart({
                     x: 0,
                 })
-                stateRef.current.lockPosition = 'center'
-                stateRef.current.lockOffset = 0
 
                 return
             }
@@ -239,19 +231,20 @@ export const Swipeout = ({
                 const actionsWidth = actions?.[activeActionsSide]?.reduce((sum, action) => sum + action.width, 0) ?? 0
                 const lockPositionOffset = direction === 'left' ? -actionsWidth : actionsWidth
 
+                stateRef.current.lockPosition = direction
+                stateRef.current.lockOffset = lockPositionOffset
                 springApiStart({
                     x: lockPositionOffset,
                 })
-
-                stateRef.current.lockPosition = direction
-                stateRef.current.lockOffset = lockPositionOffset
             } else if (lockPosition === activeActionsSide) {
+                stateRef.current.lockPosition = 'center'
+                stateRef.current.lockOffset = 0
+                stateRef.current.armed = { action: 'none', stage: 'none' }
                 springApiStart({
                     x: 0,
                 })
-                stateRef.current.lockPosition = 'center'
-                stateRef.current.lockOffset = 0
             } else {
+                stateRef.current.armed = { action: 'none', stage: 'none' }
                 springApiStart({
                     x: stateRef.current.lockOffset,
                 })
