@@ -1,4 +1,4 @@
-import { useSpring, animated, SpringConfig } from '@react-spring/web'
+import { useSpring, animated, SpringConfig, useSprings } from '@react-spring/web'
 import cn from 'classnames'
 import { useDrag } from '@use-gesture/react'
 import { ReactNode, useEffect, useRef, useState } from 'react'
@@ -29,6 +29,8 @@ type LockPosition = 'left' | 'right' | 'center'
 type ArmedAction = 'left' | 'right' | 'none'
 
 const ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
+const SPRING_TENSION = 270
+const SPRING_FRICTION = 26
 
 export const Swipeout = ({
     className,
@@ -39,8 +41,10 @@ export const Swipeout = ({
         right: [],
     },
     areActionsSwipable = true,
-    springConfig = { tension: 270, friction: 26 },
+    springConfig = { tension: SPRING_TENSION, friction: SPRING_FRICTION },
 }: Props) => {
+    const leftActionsCount = actions?.left?.length ?? 0
+    const rightActionsCount = actions?.right?.length ?? 0
     const containerRef = useRef<HTMLDivElement>(null)
     const stateRef = useRef({
         isPointerDownElementIsAction: false,
@@ -75,6 +79,49 @@ export const Swipeout = ({
     }, [])
 
     const [{ x }, api] = useSpring(() => ({ x: 0, config: springConfig }))
+    const [leftSprings, leftSpringsApi] = useSprings(leftActionsCount, (index) => ({
+        x: 0,
+        config: springConfig,
+    }))
+    const [rightSprings, rightSpringsApi] = useSprings(rightActionsCount, (index) => ({
+        x: 0,
+        config: springConfig,
+    }))
+
+    const springApiStart = ({ x, immediate }: { x: number; immediate?: boolean }) => {
+        api.start({ x, immediate })
+
+        leftSpringsApi.start((index) => {
+            const isMainAction = index === 0
+            const isArmed = isMainAction && armedActionState === 'left'
+
+            const result = {
+                x,
+                immediate,
+            }
+            const width = x > 0 ? x / leftActionsCount : 0
+
+            result.x = isArmed ? x : width
+            result.immediate = isArmed ? false : immediate
+
+            return result
+        })
+        rightSpringsApi.start((index) => {
+            const isMainAction = index === 0
+            const isArmed = isMainAction && armedActionState === 'right'
+
+            const result = {
+                x,
+                immediate,
+            }
+            const width = x < 0 ? Math.abs(x / rightActionsCount) : 0
+
+            result.x = isArmed ? Math.abs(x) : width
+            result.immediate = isArmed ? false : immediate
+
+            return result
+        })
+    }
 
     const bind = useDrag(
         ({ movement: [mx], down, active, velocity: [vx], event }) => {
@@ -111,10 +158,10 @@ export const Swipeout = ({
 
             // pointer is down, the element should just slide
             if (active) {
-                api.start(() => ({
+                springApiStart({
                     x: mx + lockOffset,
                     immediate: down,
-                }))
+                })
 
                 // locked position shouldn't be the center one otherwise the action would trigger on the first slide
                 if (lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * ACTION_TRIGGER_THRESHOLD) {
@@ -136,7 +183,7 @@ export const Swipeout = ({
                     mainAction.onTrigger()
                 }
 
-                api.start({
+                springApiStart({
                     x: 0,
                 })
                 stateRef.current.lockPosition = 'center'
@@ -150,20 +197,20 @@ export const Swipeout = ({
                 const actionsWidth = actions?.[activeActionsSide]?.reduce((sum, action) => sum + action.width, 0) ?? 0
                 const lockPositionOffset = direction === 'left' ? -actionsWidth : actionsWidth
 
-                api.start({
+                springApiStart({
                     x: lockPositionOffset,
                 })
 
                 stateRef.current.lockPosition = direction
                 stateRef.current.lockOffset = lockPositionOffset
             } else if (lockPosition === activeActionsSide) {
-                api.start({
+                springApiStart({
                     x: 0,
                 })
                 stateRef.current.lockPosition = 'center'
                 stateRef.current.lockOffset = 0
             } else {
-                api.start({
+                springApiStart({
                     x: stateRef.current.lockOffset,
                 })
             }
@@ -185,27 +232,23 @@ export const Swipeout = ({
 
         stateRef.current.lockPosition = 'center'
         stateRef.current.lockOffset = 0
-        api.start({ x: 0 })
+        springApiStart({ x: 0 })
         action.onTrigger()
     }
 
     return (
         <div className={cn('relative select-none touch-none', className)} {...dragProps} ref={containerRef}>
-            {actions?.left?.map((action, index, leftActions) => {
-                const isMainAction = index === 0
-                const isArmed = isMainAction && armedActionState === 'left'
-                const width = x.to((x) => (x > 0 ? x / leftActions.length : 0))
+            {actions?.left?.map((action, index) => {
+                const { x } = leftSprings[index]
 
                 return (
                     <animated.div
-                        className={cn('absolute left-0 flex h-full justify-start items-center overflow-hidden', {
-                            'justify-end': isArmed,
-                        })}
+                        className="absolute left-0 flex h-full items-center justify-end overflow-hidden"
                         style={{
                             background: action.background,
-                            left: width.to((w) => w * index),
-                            width: isArmed ? x : width,
-                            zIndex: Math.abs(leftActions.length - index),
+                            left: x.to((w) => w * index),
+                            width: x,
+                            zIndex: Math.abs(leftActionsCount - index),
                         }}
                         key={index}
                         {...dragProps}
@@ -218,19 +261,17 @@ export const Swipeout = ({
                     </animated.div>
                 )
             })}
-            {[...(actions?.right ?? [])].reverse().map((action, index, rightActions) => {
-                const isMainAction = index === 0
-                const isArmed = isMainAction && armedActionState === 'right'
-                const width = x.to((x) => (x < 0 ? Math.abs(x / rightActions.length) : 0))
+            {[...(actions?.right ?? [])].reverse().map((action, index) => {
+                const { x } = rightSprings[index]
 
                 return (
                     <animated.div
                         className="absolute right-0 flex h-full justify-start items-center overflow-hidden"
                         style={{
                             background: action.background,
-                            right: width.to((w) => w * index),
-                            width: isArmed ? x.to((x) => Math.abs(x)) : width,
-                            zIndex: Math.abs(rightActions.length - index),
+                            right: x.to((w) => w * index),
+                            width: x,
+                            zIndex: Math.abs(rightActionsCount - index),
                         }}
                         key={index}
                         {...dragProps}

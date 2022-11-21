@@ -122,25 +122,27 @@ ThreeActionsFromBothSides.args = {
     contentClassName: cn('p-4 text-white bg-[#222]'),
     children: (
         <>
-            <div className="text-2xl font-thin tracking-widest">power rangers</div>
+            <div className="text-2xl font-thin tracking-widest">
+                <div className='mt-[-4px]'>power rangers</div>
+            </div>
         </>
     ),
     actions: {
         left: [
             {
-                content: <div className="px-4 text-white">Red</div>,
+                content: <div className="px-4 text-white text-center">Red</div>,
                 width: 86,
                 background: '#ff3737',
                 onTrigger: () => console.log('red triggered'),
             },
             {
-                content: <div className="px-4 text-white">Black</div>,
+                content: <div className="px-4 text-white text-center">Black</div>,
                 width: 86,
                 background: '#222',
                 onTrigger: () => console.log('black triggered'),
             },
             {
-                content: <div className="px-1 text-white text-center">Blue</div>,
+                content: <div className="px-1 text-white text-center text-center">Blue</div>,
                 background: '#4b4eff',
                 width: 86,
                 onTrigger: () => console.log('blue triggered'),
