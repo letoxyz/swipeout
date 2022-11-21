@@ -3,10 +3,11 @@ import cn from 'classnames'
 import { useDrag } from '@use-gesture/react'
 import { ReactNode, useEffect, useRef, useState } from 'react'
 
+import { useSingletonTimeout } from './utils'
 import './index.css'
 
 export type ActionConifg = {
-    content: ReactNode
+    renderContent: (params: { isArmed: boolean }) => ReactNode
     background: string
     // fixed width is required for an action content in order to calculate sliding element lock positions
     width: number
@@ -17,20 +18,27 @@ type Props = {
     className?: string
     contentClassName?: string
     children?: ReactNode
+    /**
+     * Actions configuration. The first left action and the last right action are considered the main ones.
+     */
     actions?: {
-        right?: ActionConifg[]
         left?: ActionConifg[]
+        right?: ActionConifg[]
     }
+    actionTriggerThreshold?: number
+    /** Number of milliseconds to complete main action arming animation */
+    actionArmingAnimationDuration?: number
     areActionsSwipable?: boolean
     springConfig?: SpringConfig
+    onActionArmedChange?: (isArmed: boolean) => void
 }
 
 type LockPosition = 'left' | 'right' | 'center'
 type ArmedAction = 'left' | 'right' | 'none'
+type ActionArmStage = 'none' | 'arming' | 'armed' | 'unarming'
 
-const ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
-const SPRING_TENSION = 270
-const SPRING_FRICTION = 26
+const DEFAULT_ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
+const DEFAULT_ACTION_ARM_DURATION = 250
 
 export const Swipeout = ({
     className,
@@ -41,7 +49,10 @@ export const Swipeout = ({
         right: [],
     },
     areActionsSwipable = true,
-    springConfig = { tension: SPRING_TENSION, friction: SPRING_FRICTION },
+    actionTriggerThreshold = DEFAULT_ACTION_TRIGGER_THRESHOLD,
+    actionArmingAnimationDuration = DEFAULT_ACTION_ARM_DURATION,
+    springConfig = { tension: 270, friction: 26, clamp: true },
+    onActionArmedChange,
 }: Props) => {
     const leftActionsCount = actions?.left?.length ?? 0
     const rightActionsCount = actions?.right?.length ?? 0
@@ -50,8 +61,13 @@ export const Swipeout = ({
         isPointerDownElementIsAction: false,
         lockPosition: 'center' as LockPosition,
         lockOffset: 0,
-        armedAction: 'none' as ArmedAction,
+        armed: {
+            action: 'none' as ArmedAction,
+            stage: 'none' as ActionArmStage,
+        },
     })
+    const [armedActionState, setArmedActionState] = useState<ArmedAction>('none')
+    const [setTimeout] = useSingletonTimeout()
 
     useEffect(() => {
         const onPointerDown = (e: PointerEvent) => {
@@ -90,36 +106,41 @@ export const Swipeout = ({
     const springApiStart = ({ x, immediate }: { x: number; immediate?: boolean }) => {
         api.start({ x, immediate })
 
-        leftSpringsApi.start((index) => {
-            const isMainAction = index === 0
-            const isArmed = isMainAction && stateRef.current.armedAction === 'left'
+        const handleActionSpringStart = (
+            index: number,
+            actionSide: ArmedAction,
+            width: number,
+            actionsCount: number,
+        ) => {
+            const result = { x: Math.abs(x), immediate }
 
-            const result = {
-                x,
-                immediate,
+            if (actionsCount === 1) {
+                return result
             }
-            const width = x > 0 ? x / leftActionsCount : 0
 
-            result.x = isArmed ? x : width
-            result.immediate = isArmed ? false : immediate
+            const isMainAction = index === 0
+            const isArmable = isMainAction && stateRef.current.armed.action === actionSide
+            const armStage = stateRef.current.armed.stage
+
+            result.x = isArmable && ['arming', 'armed'].includes(stateRef.current.armed.stage) ? Math.abs(x) : width
+
+            if (isArmable) {
+                if (['arming', 'armed'].includes(stateRef.current.armed.stage)) {
+                    result.x = Math.abs(x)
+                }
+
+                result.immediate = !['arming', 'unarming'].includes(armStage)
+            }
 
             return result
-        })
-        rightSpringsApi.start((index) => {
-            const isMainAction = index === 0
-            const isArmed = isMainAction && stateRef.current.armedAction === 'right'
+        }
 
-            const result = {
-                x,
-                immediate,
-            }
-            const width = x < 0 ? Math.abs(x / rightActionsCount) : 0
-
-            result.x = isArmed ? Math.abs(x) : width
-            result.immediate = isArmed ? false : immediate
-
-            return result
-        })
+        leftSpringsApi.start((index) =>
+            handleActionSpringStart(index, 'left', x > 0 ? x / leftActionsCount : 0, leftActionsCount),
+        )
+        rightSpringsApi.start((index) =>
+            handleActionSpringStart(index, 'right', x < 0 ? -x / rightActionsCount : 0, rightActionsCount),
+        )
     }
 
     const bind = useDrag(
@@ -130,7 +151,7 @@ export const Swipeout = ({
                 return
             }
 
-            const { isPointerDownElementIsAction, lockPosition, lockOffset, armedAction } = stateRef.current
+            const { isPointerDownElementIsAction, lockPosition, lockOffset, armed } = stateRef.current
             const direction = mx < 0 ? 'left' : 'right'
             const activeActionsSide = mx < 0 ? 'right' : 'left'
 
@@ -157,24 +178,48 @@ export const Swipeout = ({
 
             // pointer is down, the element should just slide
             if (active) {
+                // locked position shouldn't be the center one otherwise the action would trigger on the first slide
+                const shouldArmMainAction =
+                    lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * actionTriggerThreshold
+                const isArmedOrArming = ['armed', 'arming'].includes(stateRef.current.armed.stage)
+
+                if (shouldArmMainAction) {
+                    if (!isArmedOrArming) {
+                        // we don't want to trigger this branch again if `stage` is `arming` or `armed` already
+                        onActionArmedChange?.(true)
+                        setArmedActionState(activeActionsSide)
+                        stateRef.current.armed.action = activeActionsSide
+                        stateRef.current.armed.stage = 'arming'
+
+                        setTimeout(() => {
+                            stateRef.current.armed.stage = 'armed'
+                        }, actionArmingAnimationDuration)
+                    }
+                } else {
+                    if (isArmedOrArming) {
+                        // again, `unarming` branch is triggered only if `stage` is `arming` or `armed`
+                        onActionArmedChange?.(false)
+                        setArmedActionState('none')
+                        stateRef.current.armed.stage = 'unarming'
+
+                        setTimeout(() => {
+                            stateRef.current.armed.action = 'none'
+                            stateRef.current.armed.stage = 'none'
+                        }, actionArmingAnimationDuration)
+                    }
+                }
+
                 springApiStart({
                     x: mx + lockOffset,
                     immediate: down,
                 })
 
-                // locked position shouldn't be the center one otherwise the action would trigger on the first slide
-                if (lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * ACTION_TRIGGER_THRESHOLD) {
-                    stateRef.current.armedAction = activeActionsSide
-                } else {
-                    stateRef.current.armedAction = 'none'
-                }
-
                 return
             }
 
             // pointer is up, we should check if action should be triggered
-            if (armedAction !== 'none') {
-                const mainAction = armedAction === 'left' ? actions!.left!.at(0) : actions!.right!.at(-1)
+            if (armed.stage === 'armed') {
+                const mainAction = armed.action === 'left' ? actions!.left!.at(0) : actions!.right!.at(-1)
 
                 if (mainAction) {
                     mainAction.onTrigger()
@@ -237,6 +282,8 @@ export const Swipeout = ({
         <div className={cn('relative select-none touch-none', className)} {...dragProps} ref={containerRef}>
             {actions?.left?.map((action, index) => {
                 const { x } = leftSprings[index]
+                const isMainAction = index === 0
+                const isArmed = isMainAction && armedActionState === 'left'
 
                 return (
                     <animated.div
@@ -253,13 +300,15 @@ export const Swipeout = ({
                         data-type="action"
                     >
                         <div className="shrink-0" style={{ width: action.width }}>
-                            {action.content}
+                            {action.renderContent({ isArmed })}
                         </div>
                     </animated.div>
                 )
             })}
             {[...(actions?.right ?? [])].reverse().map((action, index) => {
                 const { x } = rightSprings[index]
+                const isMainAction = index === 0
+                const isArmed = isMainAction && armedActionState === 'right'
 
                 return (
                     <animated.div
@@ -276,16 +325,16 @@ export const Swipeout = ({
                         data-type="action"
                     >
                         <div className="shrink-0" style={{ width: action.width }}>
-                            {action.content}
+                            {action.renderContent({ isArmed })}
                         </div>
                     </animated.div>
                 )
             })}
             <animated.div
-                className="relative"
-                style={{ x, zIndex: (actions?.right?.length ?? 0) + (actions?.left?.length ?? 0) + 1 }}
+                className={cn('relative', contentClassName)}
+                style={{ x, zIndex: rightActionsCount + leftActionsCount + 1 }}
             >
-                <div className={contentClassName}>{children}</div>
+                {children}
             </animated.div>
         </div>
     )
