@@ -99,15 +99,20 @@ export const Swipeout = ({
     const springApiStart = ({ x, immediate }: { x: number; immediate?: boolean }) => {
         api.start({ x, immediate })
 
-        const handleActionSpringStart = (
-            index: number,
-            actionSide: ArmedAction,
-            width: number,
-            actionsCount: number,
-        ) => {
+        const handleActionSpringStart = ({
+            index,
+            actionSide,
+            width,
+            actionsCount,
+        }: {
+            index: number
+            actionSide: ArmedAction
+            width: number
+            actionsCount: number
+        }) => {
             const result = { x: width, immediate }
 
-            if (actionsCount === 1) {
+            if (actionsCount === 1 || width === 0) {
                 return result
             }
 
@@ -127,10 +132,20 @@ export const Swipeout = ({
         }
 
         leftSpringsApi.start((index) =>
-            handleActionSpringStart(index, 'left', x > 0 ? x / leftActionsCount : 0, leftActionsCount),
+            handleActionSpringStart({
+                index,
+                actionSide: 'left',
+                width: x > 0 ? x / leftActionsCount : 0,
+                actionsCount: leftActionsCount,
+            }),
         )
         rightSpringsApi.start((index) =>
-            handleActionSpringStart(index, 'right', x < 0 ? -x / rightActionsCount : 0, rightActionsCount),
+            handleActionSpringStart({
+                index,
+                actionSide: 'right',
+                width: x < 0 ? -x / rightActionsCount : 0,
+                actionsCount: rightActionsCount,
+            }),
         )
     }
 
