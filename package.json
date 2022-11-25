@@ -2,14 +2,20 @@
     "name": "@letoxyz/swipeout",
     "version": "1.0.0",
     "type": "module",
-    "main": "./dist/swipeout.umd.js",
-    "module": "./dist/swipeout.es.js",
+    "main": "./dist/Swipeout.js",
+    "module": "./dist/Swipeout.js",
+    "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/swipeout.es.js",
-            "require": "./dist/swipeout.umd.js"
-        }
+            "import": "./dist/Swipeout.js",
+            "require": "./dist/Swipeout.umd.js"
+        },
+        "./style.css": "./dist/style.css"
     },
+    "files": [
+        "dist",
+        "src"
+    ],
     "engines": {
         "node": "16.10.0",
         "npm": "<8.0.0"
@@ -17,7 +23,6 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
-        "preview": "vite preview",
         "prepack": "cp package.json dist && json -f dist/package.json -I -e \"delete this.devDependencies\"",
         "prepublish": "npm run build && npm run prepack",
         "storybook": "start-storybook -p 6006",
@@ -26,9 +31,10 @@
     "dependencies": {
         "@react-spring/web": "9.5.5",
         "@use-gesture/react": "10.2.22",
-        "classnames": "2.3.2",
-        "react": "18.2.0",
-        "react-dom": "18.2.0"
+        "classnames": "2.3.2"
+    },
+    "peerDependencies": {
+        "react": "18.2.0"
     },
     "devDependencies": {
         "@babel/core": "7.20.2",
@@ -47,6 +53,7 @@
         "babel-loader": "8.3.0",
         "json": "11.0.0",
         "postcss": "8.4.18",
+        "react-dom": "17.0.2",
         "tailwindcss": "3.2.2",
         "typescript": "4.6.4",
         "vite": "3.2.3",
