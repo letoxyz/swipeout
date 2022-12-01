@@ -2,13 +2,13 @@
     "name": "@letoxyz/swipeout",
     "version": "1.0.1",
     "type": "module",
-    "main": "./dist/Swipeout.js",
-    "module": "./dist/Swipeout.js",
+    "main": "dist/cjs/index.js",
+    "module": "dist/esm/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/Swipeout.js",
-            "require": "./dist/Swipeout.umd.js"
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.js"
         },
         "./style.css": "./dist/style.css"
     },
@@ -24,7 +24,7 @@
         "start": "npm run storybook",
         "dev": "npm run storybook",
         "storybook": "start-storybook -p 6006",
-        "build": "tsc && vite build",
+        "build": "rollup -c",
         "prepack": "cp package.json dist && json -f dist/package.json -I -e \"delete this.devDependencies\"",
         "prepublish": "npm run build && npm run prepack",
         "build-storybook": "build-storybook"
@@ -41,11 +41,14 @@
     "devDependencies": {
         "@babel/core": "7.20.2",
         "@react-spring/types": "9.5.5",
+        "@rollup/plugin-commonjs": "23.0.3",
+        "@rollup/plugin-node-resolve": "15.0.1",
+        "@rollup/plugin-terser": "0.1.0",
+        "@rollup/plugin-typescript": "10.0.1",
         "@storybook/addon-actions": "6.5.13",
         "@storybook/addon-essentials": "6.5.13",
         "@storybook/addon-interactions": "6.5.13",
         "@storybook/addon-links": "6.5.13",
-        "@storybook/builder-vite": "0.2.5",
         "@storybook/react": "6.5.13",
         "@storybook/testing-library": "0.0.13",
         "@types/react": "18.0.24",
@@ -54,10 +57,12 @@
         "babel-loader": "8.3.0",
         "json": "11.0.0",
         "postcss": "8.4.18",
+        "rollup": "3.5.1",
+        "rollup-plugin-dts": "5.0.0",
+        "rollup-plugin-peer-deps-external": "2.2.4",
+        "rollup-plugin-postcss": "4.0.2",
         "tailwindcss": "3.2.2",
-        "typescript": "4.6.4",
-        "vite": "3.2.3",
-        "vite-plugin-dts": "1.7.0"
+        "typescript": "4.6.4"
     },
     "overrides": {
         "jest-mock": "28.1.0"
