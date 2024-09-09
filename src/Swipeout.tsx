@@ -39,6 +39,7 @@ type ActionArmStage = 'none' | 'arming' | 'armed' | 'unarming'
 
 const DEFAULT_ACTION_TRIGGER_THRESHOLD = 0.6 // percentage of container width
 const DEFAULT_ACTION_ARM_DURATION = 250 // milliseconds
+const SWIPE_THRESHOLD = 5 // Уменьшим порог для более чувствительного определения свайпа
 
 export const Swipeout = ({
     className,
@@ -68,7 +69,8 @@ export const Swipeout = ({
     })
     const [armedActionState, setArmedActionState] = useState<ArmedAction>('none')
     const [setTimeout] = useSingletonTimeout()
-    const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null)
+    const [isSwipeStarted, setIsSwipeStarted] = useState(false)
+    const startPositionRef = useRef<{ x: number; y: number } | null>(null)
 
     useOnPointerDown((e: PointerEvent) => {
         const checkIsAction = (node: HTMLElement | null): boolean => {
@@ -88,11 +90,11 @@ export const Swipeout = ({
     }, [])
 
     const [{ x }, api] = useSpring(() => ({ x: 0, config: springConfig }))
-    const [leftSprings, leftSpringsApi] = useSprings(leftActionsCount, (index) => ({
+    const [leftSprings, leftSpringsApi] = useSprings(leftActionsCount, () => ({
         x: 0,
         config: springConfig,
     }))
-    const [rightSprings, rightSpringsApi] = useSprings(rightActionsCount, (index) => ({
+    const [rightSprings, rightSpringsApi] = useSprings(rightActionsCount, () => ({
         x: 0,
         config: springConfig,
     }))
@@ -151,140 +153,153 @@ export const Swipeout = ({
     }
 
     const bind = useDrag(
-        ({ movement: [mx, my], down, active, event, first }) => {
-            const width = containerRef.current?.clientWidth
-
-            if (!width) {
-                return
-            }
-
-            // Определяем направление свайпа при первом движении
+        ({ movement: [mx], down, active, event, first, xy, last }) => {
+            
             if (first) {
-                const absX = Math.abs(mx)
-                const absY = Math.abs(my)
-                if (absX > absY && absX > 10) {
-                    setSwipeDirection('horizontal')
-                } else if (absY > absX && absY > 10) {
-                    setSwipeDirection('vertical')
-                }
-            }
-
-            // Игнорируем вертикальные свайпы
-            if (swipeDirection === 'vertical') {
+                startPositionRef.current = { x: xy[0], y: xy[1] }
+                setIsSwipeStarted(false)
                 return
             }
 
-            const { isPointerDownElementIsAction, lockPosition, lockOffset, armed } = stateRef.current
-            const direction = mx < 0 ? 'left' : 'right'
-            const activeActionsSide = mx < 0 ? 'right' : 'left'
+            if (!startPositionRef.current) return
 
-            if (
-                lockPosition === 'center' &&
-                ((!actions?.right?.length && activeActionsSide === 'right') ||
-                    (!actions?.left?.length && activeActionsSide === 'left'))
-            ) {
-                // no actions -> no reaction
-                return
-            }
+            const dx = xy[0] - startPositionRef.current.x
+            const dy = xy[1] - startPositionRef.current.y
 
-            if (isPointerDownElementIsAction) {
-                if (event.type === 'pointerup') {
-                    // swipe was started over an action element -> we shouldn't trigger the action
+            if (!isSwipeStarted) {
+                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+                    setIsSwipeStarted(true)
                     event.preventDefault()
+                } else if (Math.abs(dy) > SWIPE_THRESHOLD) {
+                    return // Позволяем вертикальный скролл
                 }
+            }
 
-                if (!areActionsSwipable) {
-                    // swipe over an action shouldn't trigger the slide
+            if (isSwipeStarted) {
+                event.preventDefault()
+                const width = containerRef.current?.clientWidth
+
+                if (!width) {
                     return
                 }
-            }
 
-            // pointer is down, the element should just slide
-            if (active) {
-                // locked position shouldn't be the center one otherwise the action would trigger on the first slide
-                const shouldArmMainAction =
-                    lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * actionTriggerThreshold
-                const isArmedOrArming = ['armed', 'arming'].includes(stateRef.current.armed.stage)
+                const { isPointerDownElementIsAction, lockPosition, lockOffset, armed } = stateRef.current
+                const direction = mx < 0 ? 'left' : 'right'
+                const activeActionsSide = mx < 0 ? 'right' : 'left'
 
-                if (shouldArmMainAction) {
-                    if (!isArmedOrArming) {
-                        // we don't want to trigger this branch again if `stage` is `arming` or `armed` already
-                        onActionArmedChange?.(true)
-                        setArmedActionState(activeActionsSide)
-                        stateRef.current.armed.action = activeActionsSide
-                        stateRef.current.armed.stage = 'arming'
+                if (
+                    lockPosition === 'center' &&
+                    ((!actions?.right?.length && activeActionsSide === 'right') ||
+                        (!actions?.left?.length && activeActionsSide === 'left'))
+                ) {
+                    // no actions -> no reaction
+                    return
+                }
 
-                        setTimeout(() => {
-                            stateRef.current.armed.stage = 'armed'
-                        }, actionArmingAnimationDuration)
+                if (isPointerDownElementIsAction) {
+                    if (event.type === 'pointerup') {
+                        // swipe was started over an action element -> we shouldn't trigger the action
+                        event.preventDefault()
                     }
+
+                    if (!areActionsSwipable) {
+                        // swipe over an action shouldn't trigger the slide
+                        return
+                    }
+                }
+
+                // pointer is down, the element should just slide
+                if (active) {
+                    // locked position shouldn't be the center one otherwise the action would trigger on the first slide
+                    const shouldArmMainAction =
+                        lockPosition !== 'center' && Math.abs(mx + lockOffset) > width * actionTriggerThreshold
+                    const isArmedOrArming = ['armed', 'arming'].includes(stateRef.current.armed.stage)
+
+                    if (shouldArmMainAction) {
+                        if (!isArmedOrArming) {
+                            // we don't want to trigger this branch again if `stage` is `arming` or `armed` already
+                            onActionArmedChange?.(true)
+                            setArmedActionState(activeActionsSide)
+                            stateRef.current.armed.action = activeActionsSide
+                            stateRef.current.armed.stage = 'arming'
+
+                            setTimeout(() => {
+                                stateRef.current.armed.stage = 'armed'
+                            }, actionArmingAnimationDuration)
+                        }
+                    } else {
+                        if (isArmedOrArming) {
+                            // again, `unarming` branch is triggered only if `stage` is `arming` or `armed`
+                            onActionArmedChange?.(false)
+                            setArmedActionState('none')
+                            stateRef.current.armed.stage = 'unarming'
+
+                            setTimeout(() => {
+                                stateRef.current.armed.action = 'none'
+                                stateRef.current.armed.stage = 'none'
+                            }, actionArmingAnimationDuration)
+                        }
+                    }
+
+                    springApiStart({
+                        x: mx + lockOffset,
+                        immediate: down,
+                    })
+
+                    return
+                }
+
+                // pointer is up, we should check if action should be triggered
+                if (armed.stage === 'armed') {
+                    const mainAction = armed.action === 'left' ? actions!.left!.at(0) : actions!.right!.at(-1)
+
+                    if (mainAction) {
+                        mainAction.onTrigger()
+                    }
+
+                    stateRef.current.lockPosition = 'center'
+                    stateRef.current.lockOffset = 0
+                    stateRef.current.armed = { action: 'none', stage: 'none' }
+                    springApiStart({
+                        x: 0,
+                    })
+
+                    return
+                }
+
+                // pointer is up, we should recaclucate lock position
+                if (lockPosition === 'center') {
+                    const actionsWidth = actions?.[activeActionsSide]?.reduce((sum, action) => sum + action.width, 0) ?? 0
+                    const lockPositionOffset = direction === 'left' ? -actionsWidth : actionsWidth
+
+                    stateRef.current.lockPosition = direction
+                    stateRef.current.lockOffset = lockPositionOffset
+                    springApiStart({
+                        x: lockPositionOffset,
+                    })
+                } else if (lockPosition === activeActionsSide) {
+                    stateRef.current.lockPosition = 'center'
+                    stateRef.current.lockOffset = 0
+                    stateRef.current.armed = { action: 'none', stage: 'none' }
+                    springApiStart({
+                        x: 0,
+                    })
                 } else {
-                    if (isArmedOrArming) {
-                        // again, `unarming` branch is triggered only if `stage` is `arming` or `armed`
-                        onActionArmedChange?.(false)
-                        setArmedActionState('none')
-                        stateRef.current.armed.stage = 'unarming'
-
-                        setTimeout(() => {
-                            stateRef.current.armed.action = 'none'
-                            stateRef.current.armed.stage = 'none'
-                        }, actionArmingAnimationDuration)
-                    }
+                    stateRef.current.armed = { action: 'none', stage: 'none' }
+                    springApiStart({
+                        x: stateRef.current.lockOffset,
+                    })
                 }
-
-                springApiStart({
-                    x: mx + lockOffset,
-                    immediate: down,
-                })
-
-                return
             }
 
-            // pointer is up, we should check if action should be triggered
-            if (armed.stage === 'armed') {
-                const mainAction = armed.action === 'left' ? actions!.left!.at(0) : actions!.right!.at(-1)
-
-                if (mainAction) {
-                    mainAction.onTrigger()
-                }
-
-                stateRef.current.lockPosition = 'center'
-                stateRef.current.lockOffset = 0
-                stateRef.current.armed = { action: 'none', stage: 'none' }
-                springApiStart({
-                    x: 0,
-                })
-
-                return
-            }
-
-            // pointer is up, we should recaclucate lock position
-            if (lockPosition === 'center') {
-                const actionsWidth = actions?.[activeActionsSide]?.reduce((sum, action) => sum + action.width, 0) ?? 0
-                const lockPositionOffset = direction === 'left' ? -actionsWidth : actionsWidth
-
-                stateRef.current.lockPosition = direction
-                stateRef.current.lockOffset = lockPositionOffset
-                springApiStart({
-                    x: lockPositionOffset,
-                })
-            } else if (lockPosition === activeActionsSide) {
-                stateRef.current.lockPosition = 'center'
-                stateRef.current.lockOffset = 0
-                stateRef.current.armed = { action: 'none', stage: 'none' }
-                springApiStart({
-                    x: 0,
-                })
-            } else {
-                stateRef.current.armed = { action: 'none', stage: 'none' }
-                springApiStart({
-                    x: stateRef.current.lockOffset,
-                })
+            if (last) {
+                setIsSwipeStarted(false)
+                startPositionRef.current = null
             }
         },
         {
             axis: 'x',
-            preventScroll: false, // Изменено на false, чтобы разрешить вертикальный скролл
+            preventScroll: false,
         },
     )
 
@@ -301,11 +316,15 @@ export const Swipeout = ({
         stateRef.current.lockOffset = 0
         springApiStart({ x: 0 })
         action.onTrigger()
-        setSwipeDirection(null) // Сбрасываем направление свайпа
     }
 
     return (
-        <div className={cn('relative select-none touch-none', className)} {...dragProps} ref={containerRef}>
+        <div
+            className={cn('relative select-none', className)}
+            {...dragProps}
+            ref={containerRef}
+            style={{ touchAction: isSwipeStarted ? 'none' : 'pan-y' }}
+        >
             {actions?.left?.map((action, index) => {
                 const { x } = leftSprings[index]
                 const isMainAction = index === 0
