@@ -29,16 +29,16 @@ import '@letoxyz/swipeout/style.css';
 Then use it in your React component:
 
 ```typescript
-import React from 'react';
-import { Swipeout } from '@letoxyz/swipeout';
-import '@letoxyz/swipeout/style.css';
+import React, { useCallback, useMemo } from 'react'
+import { Swipeout } from '@letoxyz/swipeout'
+import '@letoxyz/swipeout/style.css'
 
 const MyComponent: React.FC = () => {
-  const handleDelete = () => {
-    console.log('Delete action triggered');
-  };
+  const handleDelete = useCallback(() => {
+    console.log('Delete action triggered')
+  }, [])
 
-  const renderSwipeContent = ({ isArmed }: { isArmed: boolean }) => (
+  const renderSwipeContent = useCallback(({ isArmed }: { isArmed: boolean }) => (
     <div style={{
       backgroundColor: 'red',
       color: 'white',
@@ -46,35 +46,41 @@ const MyComponent: React.FC = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      width: '75px'
+      width: '75px',
     }}>
       Delete {isArmed ? '(Armed)' : ''}
     </div>
-  );
+  ), [])
+
+  const actions = useMemo(() => ({
+    right: [
+      {
+        renderContent: renderSwipeContent,
+        background: 'red',
+        width: 75,
+        onTrigger: handleDelete,
+      },
+    ],
+  }), [renderSwipeContent, handleDelete])
+
+  const handleActionArmedChange = useCallback((isArmed: boolean) => {
+    console.log(`Action is ${isArmed ? 'armed' : 'unarmed'}`)
+  }, [])
 
   return (
     <Swipeout
-      actions={{
-        right: [
-          {
-            renderContent: renderSwipeContent,
-            background: 'red',
-            width: 75,
-            onTrigger: handleDelete,
-          },
-        ],
-      }}
-      onActionArmedChange={(isArmed) => console.log(`Action is ${isArmed ? 'armed' : 'unarmed'}`)}
+      actions={actions}
+      onActionArmedChange={handleActionArmedChange}
     >
-      <div className="p-4 bg-white">
+      <div className="p-4 bg-rowBg">
         <div className="text-xl font-bold">Swipe me to the left</div>
         <div>This content can be swiped</div>
       </div>
     </Swipeout>
-  );
-};
+  )
+}
 
-export default MyComponent;
+export default MyComponent
 ```
 
 
