@@ -68,6 +68,7 @@ export const Swipeout = ({
     })
     const [armedActionState, setArmedActionState] = useState<ArmedAction>('none')
     const [setTimeout] = useSingletonTimeout()
+    const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null)
 
     useOnPointerDown((e: PointerEvent) => {
         const checkIsAction = (node: HTMLElement | null): boolean => {
@@ -150,10 +151,26 @@ export const Swipeout = ({
     }
 
     const bind = useDrag(
-        ({ movement: [mx], down, active, event }) => {
+        ({ movement: [mx, my], down, active, event, first }) => {
             const width = containerRef.current?.clientWidth
 
             if (!width) {
+                return
+            }
+
+            // Определяем направление свайпа при первом движении
+            if (first) {
+                const absX = Math.abs(mx)
+                const absY = Math.abs(my)
+                if (absX > absY && absX > 10) {
+                    setSwipeDirection('horizontal')
+                } else if (absY > absX && absY > 10) {
+                    setSwipeDirection('vertical')
+                }
+            }
+
+            // Игнорируем вертикальные свайпы
+            if (swipeDirection === 'vertical') {
                 return
             }
 
@@ -267,7 +284,7 @@ export const Swipeout = ({
         },
         {
             axis: 'x',
-            preventScroll: true,
+            preventScroll: false, // Изменено на false, чтобы разрешить вертикальный скролл
         },
     )
 
@@ -284,6 +301,7 @@ export const Swipeout = ({
         stateRef.current.lockOffset = 0
         springApiStart({ x: 0 })
         action.onTrigger()
+        setSwipeDirection(null) // Сбрасываем направление свайпа
     }
 
     return (
