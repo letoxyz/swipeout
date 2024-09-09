@@ -72,7 +72,7 @@ const MyComponent: React.FC = () => {
       actions={actions}
       onActionArmedChange={handleActionArmedChange}
     >
-      <div className="p-4 bg-rowBg">
+      <div className="p-4 bg-black">
         <div className="text-xl font-bold">Swipe me to the left</div>
         <div>This content can be swiped</div>
       </div>
