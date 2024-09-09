@@ -8,34 +8,37 @@ A React library for creating swipeable components with customizable actions.
 npm install @letoxyz/swipeout
 ```
 
+
 or
 
 ```bash
 yarn add @letoxyz/swipeout
 ```
 
+
 ## Usage
 
 First, import the component and its styles:
 
-```jsx
+```typescript
 import { Swipeout } from '@letoxyz/swipeout';
 import '@letoxyz/swipeout/style.css';
 ```
 
-Then, use it in your React component:
 
-```jsx
+Then use it in your React component:
+
+```typescript
 import React from 'react';
 import { Swipeout } from '@letoxyz/swipeout';
 import '@letoxyz/swipeout/style.css';
 
-const MyComponent = () => {
+const MyComponent: React.FC = () => {
   const handleDelete = () => {
     console.log('Delete action triggered');
   };
 
-  const renderSwipeContent = () => (
+  const renderSwipeContent = ({ isArmed }: { isArmed: boolean }) => (
     <div style={{
       backgroundColor: 'red',
       color: 'white',
@@ -45,27 +48,35 @@ const MyComponent = () => {
       justifyContent: 'center',
       width: '75px'
     }}>
-      Delete
+      Delete {isArmed ? '(Armed)' : ''}
     </div>
   );
 
   return (
     <Swipeout
-      right={[
-        {
-          content: renderSwipeContent(),
-          action: handleDelete,
-        },
-      ]}
-      autoClose={true}
+      actions={{
+        right: [
+          {
+            renderContent: renderSwipeContent,
+            background: 'red',
+            width: 75,
+            onTrigger: handleDelete,
+          },
+        ],
+      }}
+      onActionArmedChange={(isArmed) => console.log(`Action is ${isArmed ? 'armed' : 'unarmed'}`)}
     >
-      <div>Swipeable content goes here</div>
+      <div className="p-4 bg-white">
+        <div className="text-xl font-bold">Swipe me to the left</div>
+        <div>This content can be swiped</div>
+      </div>
     </Swipeout>
   );
 };
 
 export default MyComponent;
 ```
+
 
 ## API
 
@@ -75,95 +86,53 @@ The main component for creating a swipeable element.
 
 #### Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `left` | `Array<SwipeoutButton>` | `[]` | Array of buttons for left swipe |
-| `right` | `Array<SwipeoutButton>` | `[]` | Array of buttons for right swipe |
-| `autoClose` | `boolean` | `false` | Automatically close swipe after action |
-| `sensitivity` | `number` | `10` | Swipe sensitivity |
-| `children` | `ReactNode` | - | Content of the swipeable component |
+| Prop | Type | Description |
+|------|------|-------------|
+| `children` | `ReactNode` | Content of the component |
+| `actions` | `{ left?: ActionConfig[], right?: ActionConfig[] }` | Configuration of actions for left and right swipes |
+| `onActionArmedChange` | `(isArmed: boolean) => void` | Callback function called when the action armed state changes |
 
-### SwipeoutButton
+### ActionConfig
 
-An object describing a swipe button.
-
-#### Properties
+An object describing the configuration of a swipe action.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `content` | `ReactNode` | Content of the button |
-| `action` | `() => void` | Function called when the button is pressed |
+| `renderContent` | `(params: { isArmed: boolean }) => ReactNode` | Function to render the action content |
+| `background` | `string` | Background color of the action |
+| `width` | `number` | Width of the action in pixels |
+| `onTrigger` | `() => void` | Function called when the action is triggered |
 
 ## TypeScript Support
 
-This library includes TypeScript definitions. Here's an example of the type definitions:
+For correct TypeScript support, create a file `src/swipeout.d.ts` with the following content:
 
 ```typescript
-// index.d.ts
+declare module '@letoxyz/swipeout' {
+  import React, { ReactNode } from 'react';
 
-import { ReactNode } from 'react';
+  interface ActionConfig {
+    renderContent: (params: { isArmed: boolean }) => ReactNode;
+    background: string;
+    width: number;
+    onTrigger: () => void;
+  }
 
-export interface SwipeoutButton {
-  content: ReactNode;
-  action: () => void;
+  interface SwipeoutProps {
+    children: ReactNode;
+    actions?: {
+      left?: ActionConfig[];
+      right?: ActionConfig[];
+    };
+    onActionArmedChange?: (isArmed: boolean) => void;
+  }
+
+  export const Swipeout: React.FC<SwipeoutProps>;
 }
-
-export interface SwipeoutProps {
-  left?: SwipeoutButton[];
-  right?: SwipeoutButton[];
-  autoClose?: boolean;
-  sensitivity?: number;
-  children: ReactNode;
-}
-
-export class Swipeout extends React.Component<SwipeoutProps> {}
 ```
 
-## Examples
 
-### Left and Right Swipe
-
-```jsx
-<Swipeout
-  left={[
-    {
-      content: <div>Archive</div>,
-      action: () => console.log('Archived'),
-    },
-  ]}
-  right={[
-    {
-      content: <div>Delete</div>,
-      action: () => console.log('Deleted'),
-    },
-  ]}
->
-  <div>Swipe me left or right</div>
-</Swipeout>
-```
-
-### Multiple Buttons
-
-```jsx
-<Swipeout
-  right={[
-    {
-      content: <div>Edit</div>,
-      action: () => console.log('Edit'),
-    },
-    {
-      content: <div>Delete</div>,
-      action: () => console.log('Delete'),
-    },
-  ]}
->
-  <div>Swipe me right for multiple actions</div>
-</Swipeout>
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+This will provide proper type definitions for the Swipeout component and its props.
 
 ## License
 
