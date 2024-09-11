@@ -1,6 +1,6 @@
 {
     "name": "@letoxyz/swipeout",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "type": "module",
     "main": "dist/cjs/index.js",
     "module": "dist/esm/index.js",
@@ -83,12 +83,8 @@
             "url": "https://github.com/nrjshka"
         },
         {
-            "name": "Aleksey Lisun",
-            "url": "https://github.com/insulineru"
-        },
-        {
-            "name": "Iower",
-            "url": "https://github.com/iower"
+            "name": "Serafim",
+            "url": "https://github.com/serafimcloud"
         }
     ],
     "license": "ISC",
